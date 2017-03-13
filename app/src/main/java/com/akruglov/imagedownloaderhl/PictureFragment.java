@@ -59,7 +59,7 @@ public class PictureFragment extends Fragment {
 
         mDownloader = new Downloader();
         mDownloader.start();
-        mDownloader.downloadImageAsync(PICTURE_URL);
+        //mDownloader.downloadImageAsync(PICTURE_URL);
     }
 
     @Nullable
@@ -69,7 +69,8 @@ public class PictureFragment extends Fragment {
 
         mPicture = (ImageView) view.findViewById(R.id.picture);
 
-        mDownloader.setImageView(mPicture);
+        //mDownloader.setImageView(mPicture);
+        mDownloader.downloadImageAsync(PICTURE_URL, mPicture);
 
         Log.i("Picture fragment", "onCreateView");
 

@@ -17,19 +17,22 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by akruglov on 13.03.17.
  */
 
-public class Downloader {
+public class Downloader<T> {
 
     private static final int LOAD_PICTURE_MESSAGE_ID = 1;
     private static final int RESPONSE_LOAD_PICTURE_MESSAGE_ID = 2;
 
     private ResponseHandler mResponseHandler;
     private HandlerThread mDownloader;
-    private Handler mRequestHandler;
+    private RequestHandler<T> mRequestHandler;
+
+    private ConcurrentHashMap<T, String> mRequestMap = new ConcurrentHashMap<>();
 
     public static byte[] getUrlBytes(String urlSpec) throws IOException {
         URL url = new URL(urlSpec);
@@ -55,20 +58,24 @@ public class Downloader {
         }
     }
 
-    public static class RequestHandler extends Handler {
+    public static class RequestHandler<T> extends Handler {
 
         private Handler mResponseHandler;
+        private ConcurrentHashMap<T, String> mRequestMap;
 
-        public RequestHandler(Looper looper, Handler responseHandler) {
+        public RequestHandler(Looper looper, Handler responseHandler,
+                              ConcurrentHashMap<T, String> requestMap) {
             super(looper);
             mResponseHandler = responseHandler;
+            mRequestMap = requestMap;
         }
 
         @Override
         public void handleMessage(Message msg) {
             if (msg.what == LOAD_PICTURE_MESSAGE_ID) {
                 try {
-                    byte[] bitmapBytes = getUrlBytes((String) msg.obj);
+                    String url = mRequestMap.get(msg.obj);
+                    byte[] bitmapBytes = getUrlBytes(url);
                     final Bitmap bitmap = BitmapFactory.decodeByteArray(bitmapBytes, 0, bitmapBytes.length);
                     Log.i("PictureFragment", "Image downloaded");
                     Message message = mResponseHandler.obtainMessage(RESPONSE_LOAD_PICTURE_MESSAGE_ID, bitmap);
@@ -118,15 +125,21 @@ public class Downloader {
         mDownloader = new HandlerThread("downloader", Process.THREAD_PRIORITY_BACKGROUND);
         mDownloader.start();
 
-        mRequestHandler = new RequestHandler(mDownloader.getLooper(), mResponseHandler);
+        mRequestHandler = new RequestHandler(mDownloader.getLooper(), mResponseHandler, mRequestMap);
+    }
+
+    public void stop() {
+        mRequestHandler.removeMessages(LOAD_PICTURE_MESSAGE_ID);
+        mDownloader.quit();
     }
 
     public void setImageView(ImageView imageView) {
         mResponseHandler.setImageView(imageView);
     }
 
-    public void downloadImageAsync(String url) {
-        Message request = mRequestHandler.obtainMessage(LOAD_PICTURE_MESSAGE_ID, url);
+    public void downloadImageAsync(String url, T target) {
+        mRequestMap.put(target, url);
+        Message request = mRequestHandler.obtainMessage(LOAD_PICTURE_MESSAGE_ID, target);
         mRequestHandler.sendMessage(request);
     }
 }
